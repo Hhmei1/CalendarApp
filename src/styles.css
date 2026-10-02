@@ -1,0 +1,327 @@
+/* ---------- Thème ---------- */
+:root {
+  --fond: #000;
+  --encre: #fff;
+  --discret: rgba(255, 255, 255, 0.4);
+  --trait: 4px;
+  color-scheme: dark;
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+:root[data-theme="light"] {
+  --fond: #fff;
+  --encre: #000;
+  --discret: rgba(0, 0, 0, 0.4);
+  color-scheme: light;
+}
+
+/* ---------- Base ---------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--fond);
+  color: var(--encre);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+:focus-visible {
+  outline: 2px dashed var(--encre);
+  outline-offset: 3px;
+}
+
+/* ---------- Cadre principal ---------- */
+.cadre {
+  position: fixed;
+  inset: 40px 88px; /* même marge à gauche et à droite */
+  border: var(--trait) solid var(--encre);
+  padding: 44px 32px 32px;
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr) minmax(240px, 320px);
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas:
+    "entete entete entete"
+    "nav mois panneau";
+  column-gap: 48px;
+  row-gap: 40px;
+  overflow: auto;
+}
+
+/* ---------- En-tête ---------- */
+.entete {
+  grid-area: entete;
+}
+
+.entete h1 {
+  font-size: clamp(2rem, 3.2vw, 2.75rem);
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.sous-titre {
+  margin-top: 0.5rem;
+  font-size: 1.2rem;
+}
+
+/* ---------- Navigation ---------- */
+.navigation {
+  grid-area: nav;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+}
+
+.navigation button {
+  font-size: 1.35rem;
+  padding: 0.3rem 0.5rem;
+}
+
+.navigation button:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+/* ---------- Grille du mois ---------- */
+.mois {
+  grid-area: mois;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+}
+
+.jours-semaine,
+.grille {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.jours-semaine span {
+  padding: 0 0.6rem 0.6rem;
+  font-size: 0.95rem;
+  color: var(--discret);
+}
+
+.grille {
+  min-height: 0;
+}
+
+.jour {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+  min-height: 2.6rem;
+  padding: 0.45rem 0.6rem;
+  font-size: 1.15rem;
+  overflow: hidden;
+}
+
+/* Un petit carré par événement, de gauche à droite puis à la ligne */
+.marques {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.marque {
+  width: 0.45rem;
+  height: 0.45rem;
+  background: currentColor;
+}
+
+.jour.hors-mois {
+  color: var(--discret);
+}
+
+.jour:hover {
+  box-shadow: inset 0 0 0 1px var(--discret);
+}
+
+.jour.aujourdhui {
+  font-weight: 700;
+  box-shadow: inset 0 0 0 2px var(--encre);
+}
+
+.jour.selectionne {
+  background: var(--encre);
+  color: var(--fond);
+}
+
+/* ---------- Panneau du jour (bas droite) ---------- */
+.panneau {
+  grid-area: panneau;
+  align-self: start;
+  font-size: 1.15rem;
+  line-height: 1.5;
+}
+
+.panneau h2 {
+  font-size: 1.15rem;
+  font-weight: 400;
+  margin-bottom: 1rem;
+}
+
+.liste {
+  list-style: none;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.evenement {
+  display: grid;
+  grid-template-columns: 3.5rem minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.evenement .heure {
+  color: var(--discret);
+  font-variant-numeric: tabular-nums;
+}
+
+.evenement .supprimer {
+  font-size: 0.9rem;
+  opacity: 0;
+}
+
+.evenement:hover .supprimer,
+.evenement .supprimer:focus-visible {
+  opacity: 1;
+}
+
+.vide {
+  color: var(--discret);
+}
+
+/* ---------- Formulaire d'ajout ---------- */
+.formulaire {
+  margin-top: 1.25rem;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.formulaire input {
+  background: none;
+  border: none;
+  border-bottom: 2px solid var(--encre);
+  border-radius: 0;
+  padding: 0.3rem 0;
+}
+
+.formulaire input::placeholder {
+  color: var(--discret);
+}
+
+.actions {
+  display: flex;
+  gap: 1.25rem;
+}
+
+.actions button {
+  padding: 0.2rem 0;
+}
+
+.actions button[type="submit"] {
+  font-weight: 700;
+}
+
+/* ---------- Sélecteur DARK / LIGHT vertical ---------- */
+.theme {
+  position: fixed;
+  left: 40px;
+  bottom: 50px; /* bas du cadre (40px + 4px de trait) + 6px d'espace */
+  width: 48px;
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  gap: 1.75rem;
+}
+
+.theme-choix {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.carre {
+  width: 0.75em;
+  height: 0.75em;
+  border: 2px solid currentColor;
+}
+
+.theme-choix[aria-pressed="true"] .carre {
+  background: currentColor;
+}
+
+/* ---------- Petites fenêtres ---------- */
+@media (max-width: 900px) {
+  body {
+    overflow: auto;
+  }
+
+  .cadre {
+    position: static;
+    margin: 24px 72px;
+    min-height: calc(100vh - 48px);
+    padding: 28px 20px;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "entete"
+      "nav"
+      "mois"
+      "panneau";
+    row-gap: 28px;
+    overflow: visible;
+  }
+
+  .navigation {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .mois {
+    min-height: 360px;
+  }
+
+  .panneau {
+    align-self: start;
+  }
+
+  .theme {
+    left: 12px;
+    bottom: 34px;
+  }
+}

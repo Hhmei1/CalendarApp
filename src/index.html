@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="fr" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Calendrier</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script type="module" src="/main.js" defer></script>
+  </head>
+
+  <body>
+    <!-- Sélecteur de thème vertical, hors du cadre -->
+    <div class="theme" role="group" aria-label="Thème">
+      <button type="button" class="theme-choix" data-theme-choix="dark">
+        <span class="carre" aria-hidden="true"></span>DARK
+      </button>
+      <button type="button" class="theme-choix" data-theme-choix="light">
+        <span class="carre" aria-hidden="true"></span>LIGHT
+      </button>
+    </div>
+
+    <main class="cadre">
+      <header class="entete">
+        <h1 id="titre-mois"></h1>
+        <p id="date-du-jour" class="sous-titre"></p>
+      </header>
+
+      <nav class="navigation" aria-label="Navigation du calendrier">
+        <button type="button" id="mois-precedent">Précédent</button>
+        <button type="button" id="mois-suivant">Suivant</button>
+        <button type="button" id="aller-aujourdhui">Aujourd'hui</button>
+        <button type="button" id="ajouter">Ajouter</button>
+      </nav>
+
+      <section class="mois" aria-labelledby="titre-mois">
+        <div class="jours-semaine" aria-hidden="true">
+          <span>lun</span><span>mar</span><span>mer</span><span>jeu</span>
+          <span>ven</span><span>sam</span><span>dim</span>
+        </div>
+        <div id="grille" class="grille"></div>
+      </section>
+
+      <aside class="panneau" aria-live="polite">
+        <h2 id="titre-jour"></h2>
+        <ul id="liste-evenements" class="liste"></ul>
+        <p id="vide" class="vide" hidden>Rien de prévu ce jour-là.</p>
+
+        <form id="formulaire" class="formulaire" hidden>
+          <input
+            id="champ-titre"
+            type="text"
+            placeholder="Nouvel événement"
+            aria-label="Titre de l'événement"
+            autocomplete="off"
+            required
+          />
+          <input id="champ-heure" type="time" aria-label="Heure (facultative)" />
+          <div class="actions">
+            <button type="submit">Enregistrer</button>
+            <button type="button" id="annuler">Annuler</button>
+          </div>
+        </form>
+      </aside>
+    </main>
+  </body>
+</html>
