@@ -64,13 +64,17 @@ button {
   inset: 40px 88px; /* même marge à gauche et à droite */
   border: var(--trait) solid var(--encre);
   padding: 44px 32px 32px;
+  /* À droite, la marge grandit avec la fenêtre : 32px en petit, ~100px en grand */
+  padding-right: calc(32px + clamp(0px, (100vw - 1100px) * 0.08, 72px));
   display: grid;
-  grid-template-columns: 170px minmax(0, 1fr) minmax(240px, 320px);
+  /* Le panneau et les espacements se resserrent un peu dans les petites
+     fenêtres, pour laisser la largeur à la grille */
+  grid-template-columns: auto minmax(0, 1fr) clamp(220px, 21vw, 280px);
   grid-template-rows: auto minmax(0, 1fr);
   grid-template-areas:
     "entete entete entete"
     "nav mois panneau";
-  column-gap: 48px;
+  column-gap: clamp(28px, 2.6vw, 40px);
   row-gap: 40px;
   overflow: auto;
 }
@@ -118,17 +122,30 @@ button {
 }
 
 /* ---------- Grille du mois ---------- */
+/* La zone du mois sert de repère : chaque case fait la plus petite des deux
+   tailles possibles (largeur / 7 ou hauteur / 6), donc reste toujours carrée.
+   On réserve toujours la place de 6 semaines pour que les cases gardent
+   la même taille d'un mois à l'autre. */
 .mois {
   grid-area: mois;
+  container-type: size;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-content: start;
+  justify-content: center; /* la grille se centre dans l'espace libre */
   min-height: 0;
+  --entete-jours: 2.2rem;
+  --case: min(100cqw / 7, (100cqh - var(--entete-jours)) / 6);
 }
 
 .jours-semaine,
 .grille {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-columns: repeat(7, var(--case));
+}
+
+.jours-semaine {
+  height: var(--entete-jours);
 }
 
 .jours-semaine span {
@@ -137,16 +154,12 @@ button {
   color: var(--discret);
 }
 
-.grille {
-  min-height: 0;
-}
-
 .jour {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 0.35rem;
-  min-height: 2.6rem;
+  min-height: 0;
   padding: 0.45rem 0.6rem;
   font-size: 1.15rem;
   overflow: hidden;
@@ -273,6 +286,12 @@ button {
   padding: 0.3rem 0;
 }
 
+/* Au focus : un cadre continu, détaché du texte, au lieu des pointillés */
+.formulaire input:focus-visible {
+  outline: 2px solid var(--encre);
+  outline-offset: 4px;
+}
+
 .formulaire input::placeholder {
   color: var(--discret);
 }
@@ -280,12 +299,13 @@ button {
 .horaires {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1rem;
+  gap: 1.25rem;
 }
 
 .horaires label {
+  position: relative; /* repère pour la liste des heures */
   display: grid;
-  gap: 0.15rem;
+  gap: 0.6rem; /* de l'air entre « Début / Fin » et le champ */
 }
 
 .horaires label span {
@@ -293,17 +313,93 @@ button {
   color: var(--discret);
 }
 
+/* Heures et minutes : un cadre au lieu du surlignage bleu */
+.formulaire input[type="time"]::-webkit-datetime-edit-hour-field,
+.formulaire input[type="time"]::-webkit-datetime-edit-minute-field,
+.formulaire input[type="time"]::-webkit-datetime-edit-ampm-field {
+  background: transparent;
+  color: var(--encre);
+  padding: 0 2px;
+}
+
+.formulaire input[type="time"]::-webkit-datetime-edit-hour-field:focus-within,
+.formulaire input[type="time"]::-webkit-datetime-edit-minute-field:focus-within,
+.formulaire input[type="time"]::-webkit-datetime-edit-ampm-field:focus-within {
+  box-shadow: inset 0 0 0 2px var(--encre);
+}
+
+/* On masque la petite horloge et le sélecteur de Windows */
+.formulaire input[type="time"]::-webkit-calendar-picker-indicator {
+  display: none;
+}
+
+/* Sélecteur d'heure maison : deux colonnes, heures et minutes */
+.liste-heures {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  min-width: 8rem;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: var(--fond);
+  border: 2px solid var(--encre);
+  z-index: 20;
+}
+
+.liste-heures .colonne {
+  position: relative; /* repère pour le défilement */
+  max-height: 12.5rem;
+  overflow-y: auto;
+  list-style: none;
+  scrollbar-width: none; /* colonnes épurées, on défile à la molette */
+}
+
+.liste-heures .colonne + .colonne {
+  border-left: 2px solid var(--encre);
+}
+
+.liste-heures button {
+  display: block;
+  width: 100%;
+  padding: 0.3rem 0;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.liste-heures button:hover {
+  box-shadow: inset 0 0 0 2px var(--encre);
+}
+
+.liste-heures button[aria-selected="true"] {
+  background: var(--encre);
+  color: var(--fond);
+}
+
 .actions {
   display: flex;
   gap: 1.25rem;
 }
 
-.actions button {
-  padding: 0.2rem 0;
+.actions {
+  margin-top: 0.5rem;
 }
 
-.actions button[type="submit"] {
-  font-weight: 700;
+/* Enregistrer / Annuler : même comportement que Précédent / Suivant */
+.actions button {
+  padding: 0.2rem 0;
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+
+.actions button:hover {
+  color: var(--discret);
+  transform: translateX(-4px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .actions button:hover {
+    transform: none;
+  }
 }
 
 /* ---------- Sélecteur DARK / LIGHT vertical ---------- */

@@ -23,7 +23,7 @@ const el = {
 };
 
 // ---------- État ----------
-const aujourdhui = new Date();
+let aujourdhui = new Date(); // date lue sur l'horloge de Windows
 let moisAffiche = new Date(aujourdhui.getFullYear(), aujourdhui.getMonth(), 1);
 let jourSelectionne = cleDate(aujourdhui);
 let evenements = chargerEvenements(); // { "2026-10-02": [{ id, titre, debut, fin }] }
@@ -103,7 +103,7 @@ function afficherGrille() {
   const nbSemaines = Math.ceil((decalage + joursDansMois) / 7);
   const cleAujourdhui = cleDate(aujourdhui);
 
-  el.grille.style.gridTemplateRows = `repeat(${nbSemaines}, minmax(0, 1fr))`;
+  el.grille.style.gridTemplateRows = `repeat(${nbSemaines}, var(--case))`;
   el.grille.replaceChildren();
 
   for (let i = 0; i < nbSemaines * 7; i++) {
@@ -231,6 +231,113 @@ function verifierHoraires() {
   el.champFin.setCustomValidity(message);
 }
 
+// ---------- Sélecteur d'heure maison : heures à gauche, minutes à droite ----------
+const HEURES = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"));
+const MINUTES = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, "0"));
+
+let listeOuverte = null;
+
+function fermerListeHeures() {
+  listeOuverte?.remove();
+  listeOuverte = null;
+}
+
+function creerColonne(valeurs, nom, auChoix) {
+  const colonne = document.createElement("ul");
+  colonne.className = "colonne";
+  colonne.setAttribute("role", "listbox");
+  colonne.setAttribute("aria-label", nom);
+  for (const valeur of valeurs) {
+    const li = document.createElement("li");
+    const bouton = document.createElement("button");
+    bouton.type = "button";
+    bouton.tabIndex = -1;
+    bouton.textContent = valeur;
+    bouton.dataset.valeur = valeur;
+    bouton.setAttribute("role", "option");
+    // mousedown + preventDefault : le champ garde le focus pendant le clic
+    bouton.addEventListener("mousedown", (e) => e.preventDefault());
+    // Le sélecteur est dans le <label> : on évite que le clic soit renvoyé au champ
+    bouton.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      auChoix(valeur);
+    });
+    li.append(bouton);
+    colonne.append(li);
+  }
+  return colonne;
+}
+
+function marquer(colonne, valeur) {
+  for (const bouton of colonne.querySelectorAll("button")) {
+    bouton.setAttribute("aria-selected", String(bouton.dataset.valeur === valeur));
+  }
+}
+
+function ouvrirListeHeures(champ) {
+  fermerListeHeures();
+
+  // Heure de référence pour placer les colonnes : la valeur du champ,
+  // sinon début + 1h pour la fin, sinon 08:00
+  let reference = champ.value;
+  if (!reference && champ === el.champFin && el.champDebut.value) {
+    const [h, m] = el.champDebut.value.split(":");
+    reference = `${String(Math.min(Number(h) + 1, 23)).padStart(2, "0")}:${m}`;
+  }
+  reference ||= "08:00";
+  const [hRef, mRef] = reference.split(":");
+
+  const ecrire = (h, m) => {
+    champ.value = `${h}:${m}`;
+    champ.dispatchEvent(new Event("input", { bubbles: true }));
+  };
+  const valeurActuelle = () => (champ.value ? champ.value.split(":") : [null, null]);
+
+  // Choisir l'heure : on garde les minutes déjà choisies (ou :00), la liste reste ouverte
+  const colonneHeures = creerColonne(HEURES, "Heures", (h) => {
+    const [, m] = valeurActuelle();
+    ecrire(h, m ?? "00");
+    marquer(colonneHeures, h);
+    marquer(colonneMinutes, m ?? "00");
+  });
+
+  // Choisir les minutes : on garde l'heure (ou celle de référence), puis on ferme
+  const colonneMinutes = creerColonne(MINUTES, "Minutes", (m) => {
+    const [h] = valeurActuelle();
+    ecrire(h ?? hRef, m);
+    fermerListeHeures();
+  });
+
+  const [hVal, mVal] = valeurActuelle();
+  if (hVal) marquer(colonneHeures, hVal);
+  if (mVal) marquer(colonneMinutes, mVal);
+
+  const conteneur = document.createElement("div");
+  conteneur.className = "liste-heures";
+  conteneur.append(colonneHeures, colonneMinutes);
+  champ.closest("label").append(conteneur);
+  listeOuverte = conteneur;
+
+  // On fait défiler chaque colonne jusqu'à la valeur de référence
+  const viser = (colonne, valeur) => {
+    const cible = [...colonne.querySelectorAll("button")].find((b) => b.dataset.valeur >= valeur);
+    if (cible) colonne.scrollTop = cible.parentElement.offsetTop;
+  };
+  viser(colonneHeures, hRef);
+  viser(colonneMinutes, mRef);
+}
+
+for (const champ of [el.champDebut, el.champFin]) {
+  champ.addEventListener("click", () => {
+    if (!listeOuverte || !champ.closest("label").contains(listeOuverte)) ouvrirListeHeures(champ);
+  });
+  champ.addEventListener("blur", fermerListeHeures);
+  champ.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && listeOuverte) fermerListeHeures();
+  });
+}
+
 // ---------- Ouverture / fermeture du formulaire ----------
 function ouvrirFormulaire() {
   el.formulaire.hidden = false;
@@ -239,6 +346,7 @@ function ouvrirFormulaire() {
 }
 
 function fermerFormulaire() {
+  fermerListeHeures();
   el.formulaire.reset();
   el.champFin.setCustomValidity("");
   el.formulaire.hidden = true;
@@ -317,12 +425,34 @@ document.addEventListener("keydown", (e) => {
     basculerPleinEcran();
     return;
   }
-  if (e.key === "Escape" && !el.formulaire.hidden) fermerFormulaire();
+  if (e.key !== "Escape") return;
+  if (listeOuverte) fermerListeHeures(); // Échap ferme d'abord la liste des heures
+  else if (!el.formulaire.hidden) fermerFormulaire();
 });
 
 document.querySelectorAll("[data-theme-choix]").forEach((bouton) => {
   bouton.addEventListener("click", () => appliquerTheme(bouton.dataset.themeChoix));
 });
+
+// ---------- Passage à minuit ----------
+// Toutes les minutes, on relit l'horloge : si le jour a changé, on met tout à jour
+setInterval(() => {
+  const maintenant = new Date();
+  if (cleDate(maintenant) === cleDate(aujourdhui)) return;
+
+  const ancienneCle = cleDate(aujourdhui);
+  const ancienMois = aujourdhui.getMonth();
+  aujourdhui = maintenant;
+
+  // Si on regardait « aujourd'hui », on suit le nouveau jour
+  if (jourSelectionne === ancienneCle) {
+    jourSelectionne = cleDate(aujourdhui);
+    if (moisAffiche.getMonth() === ancienMois) {
+      moisAffiche = new Date(aujourdhui.getFullYear(), aujourdhui.getMonth(), 1);
+    }
+  }
+  afficher();
+}, 60 * 1000);
 
 // ---------- Démarrage ----------
 let themeInitial = "dark";
