@@ -16,15 +16,17 @@ const el = {
   liste: $("liste-evenements"),
   vide: $("vide"),
   formulaire: $("formulaire"),
+  ouvrirAjout: $("ouvrir-ajout"),
   champTitre: $("champ-titre"),
-  champHeure: $("champ-heure"),
+  champDebut: $("champ-debut"),
+  champFin: $("champ-fin"),
 };
 
 // ---------- État ----------
 const aujourdhui = new Date();
 let moisAffiche = new Date(aujourdhui.getFullYear(), aujourdhui.getMonth(), 1);
 let jourSelectionne = cleDate(aujourdhui);
-let evenements = chargerEvenements(); // { "2026-10-02": [{ id, titre, heure }] }
+let evenements = chargerEvenements(); // { "2026-10-02": [{ id, titre, debut, fin }] }
 
 // ---------- Outils ----------
 function cleDate(date) {
@@ -43,10 +45,26 @@ function majuscule(texte) {
   return texte.charAt(0).toUpperCase() + texte.slice(1);
 }
 
+function texteHoraire(ev) {
+  if (ev.debut && ev.fin) return `${ev.debut} – ${ev.fin}`;
+  return ev.debut || "";
+}
+
 // Stockage local provisoire : remplacé par Supabase à l'étape suivante
 function chargerEvenements() {
   try {
-    return JSON.parse(localStorage.getItem(CLE_EVENEMENTS)) ?? {};
+    const donnees = JSON.parse(localStorage.getItem(CLE_EVENEMENTS)) ?? {};
+    // Les événements créés avec l'ancienne version avaient une seule « heure »
+    for (const liste of Object.values(donnees)) {
+      for (const ev of liste) {
+        if (ev.heure !== undefined && ev.debut === undefined) {
+          ev.debut = ev.heure;
+          ev.fin = "";
+          delete ev.heure;
+        }
+      }
+    }
+    return donnees;
   } catch {
     return {};
   }
@@ -102,6 +120,7 @@ function afficherGrille() {
     numero.textContent = date.getDate();
     bouton.append(numero);
 
+    // Un petit carré par événement
     if (nb) {
       const marques = document.createElement("span");
       marques.className = "marques";
@@ -113,6 +132,7 @@ function afficherGrille() {
       }
       bouton.append(marques);
     }
+
     bouton.setAttribute(
       "aria-label",
       date.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }) +
@@ -139,9 +159,9 @@ function afficherPanneau() {
     date.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })
   );
 
-  // Événements avec heure d'abord, dans l'ordre ; ceux sans heure à la fin
+  // Événements avec horaire d'abord, dans l'ordre ; ceux sans horaire à la fin
   const liste = [...(evenements[jourSelectionne] ?? [])].sort((a, b) =>
-    (a.heure || "99:99").localeCompare(b.heure || "99:99")
+    (a.debut || "99:99").localeCompare(b.debut || "99:99")
   );
 
   el.liste.replaceChildren();
@@ -149,9 +169,9 @@ function afficherPanneau() {
     const li = document.createElement("li");
     li.className = "evenement";
 
-    const heure = document.createElement("span");
-    heure.className = "heure";
-    heure.textContent = ev.heure || "";
+    const horaire = document.createElement("span");
+    horaire.className = "heure";
+    horaire.textContent = texteHoraire(ev);
 
     const titre = document.createElement("span");
     titre.textContent = ev.titre;
@@ -163,11 +183,11 @@ function afficherPanneau() {
     supprimer.setAttribute("aria-label", `Supprimer ${ev.titre}`);
     supprimer.addEventListener("click", () => supprimerEvenement(ev.id));
 
-    li.append(heure, titre, supprimer);
+    li.append(horaire, titre, supprimer);
     el.liste.append(li);
   }
 
-  el.vide.hidden = liste.length > 0 || !el.formulaire.hidden;
+  el.vide.hidden = liste.length > 0;
 }
 
 // ---------- Actions ----------
@@ -186,21 +206,9 @@ function changerMois(ecart) {
   afficher();
 }
 
-function ouvrirFormulaire() {
-  el.formulaire.hidden = false;
-  el.vide.hidden = true;
-  el.champTitre.focus();
-}
-
-function fermerFormulaire() {
-  el.formulaire.reset();
-  el.formulaire.hidden = true;
-  afficherPanneau();
-}
-
-function ajouterEvenement(titre, heure) {
+function ajouterEvenement(titre, debut, fin) {
   const liste = evenements[jourSelectionne] ?? [];
-  liste.push({ id: crypto.randomUUID(), titre, heure });
+  liste.push({ id: crypto.randomUUID(), titre, debut, fin });
   evenements[jourSelectionne] = liste;
   sauvegarderEvenements();
 }
@@ -211,6 +219,48 @@ function supprimerEvenement(id) {
   else delete evenements[jourSelectionne];
   sauvegarderEvenements();
   afficher();
+}
+
+// Vérifie que la fin vient après le début, et qu'une fin a bien un début
+function verifierHoraires() {
+  const debut = el.champDebut.value;
+  const fin = el.champFin.value;
+  let message = "";
+  if (fin && !debut) message = "Indique aussi une heure de début.";
+  else if (debut && fin && fin <= debut) message = "L'heure de fin doit être après l'heure de début.";
+  el.champFin.setCustomValidity(message);
+}
+
+// ---------- Ouverture / fermeture du formulaire ----------
+function ouvrirFormulaire() {
+  el.formulaire.hidden = false;
+  el.ouvrirAjout.hidden = true;
+  el.champTitre.focus();
+}
+
+function fermerFormulaire() {
+  el.formulaire.reset();
+  el.champFin.setCustomValidity("");
+  el.formulaire.hidden = true;
+  el.ouvrirAjout.hidden = false;
+}
+
+// ---------- Fenêtre (Tauri) ----------
+// En dehors de Tauri (dans un navigateur), ces fonctions ne font rien
+const fenetre = window.__TAURI__?.window?.getCurrentWindow();
+
+async function basculerPleinEcran() {
+  if (!fenetre) return;
+  const plein = await fenetre.isFullscreen();
+  await fenetre.setFullscreen(!plein);
+}
+
+if (fenetre) {
+  $("fenetre-reduire").addEventListener("click", () => fenetre.minimize());
+  $("fenetre-agrandir").addEventListener("click", () => fenetre.toggleMaximize());
+  $("fenetre-fermer").addEventListener("click", () => fenetre.close());
+} else {
+  document.querySelector(".controles").hidden = true;
 }
 
 // ---------- Thème ----------
@@ -230,29 +280,43 @@ function appliquerTheme(theme) {
 $("mois-precedent").addEventListener("click", () => changerMois(-1));
 $("mois-suivant").addEventListener("click", () => changerMois(1));
 $("aller-aujourdhui").addEventListener("click", () => selectionnerJour(cleDate(aujourdhui)));
-$("ajouter").addEventListener("click", ouvrirFormulaire);
-$("annuler").addEventListener("click", fermerFormulaire);
 
 el.grille.addEventListener("click", (e) => {
   const jour = e.target.closest(".jour");
   if (jour) selectionnerJour(jour.dataset.cle);
 });
 
-// Double-clic sur un jour : ajout direct
+// Double-clic sur un jour : on ouvre directement le formulaire
 el.grille.addEventListener("dblclick", (e) => {
   if (e.target.closest(".jour")) ouvrirFormulaire();
 });
 
+el.ouvrirAjout.addEventListener("click", ouvrirFormulaire);
+$("annuler").addEventListener("click", fermerFormulaire);
+
+el.champDebut.addEventListener("input", verifierHoraires);
+el.champFin.addEventListener("input", verifierHoraires);
+
 el.formulaire.addEventListener("submit", (e) => {
   e.preventDefault();
+  verifierHoraires();
+  if (!el.formulaire.reportValidity()) return;
+
   const titre = el.champTitre.value.trim();
   if (!titre) return;
-  ajouterEvenement(titre, el.champHeure.value);
+
+  ajouterEvenement(titre, el.champDebut.value, el.champFin.value);
   fermerFormulaire();
   afficherGrille();
+  afficherPanneau();
 });
 
 document.addEventListener("keydown", (e) => {
+  if (e.key === "F11") {
+    e.preventDefault();
+    basculerPleinEcran();
+    return;
+  }
   if (e.key === "Escape" && !el.formulaire.hidden) fermerFormulaire();
 });
 

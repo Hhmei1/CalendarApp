@@ -103,11 +103,18 @@ button {
 .navigation button {
   font-size: 1.35rem;
   padding: 0.3rem 0.5rem;
+  transition: color 0.15s ease, transform 0.15s ease;
 }
 
 .navigation button:hover {
-  text-decoration: underline;
-  text-underline-offset: 4px;
+  color: var(--discret);
+  transform: translateX(-4px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .navigation button:hover {
+    transform: none;
+  }
 }
 
 /* ---------- Grille du mois ---------- */
@@ -168,12 +175,17 @@ button {
 
 .jour.aujourdhui {
   font-weight: 700;
-  box-shadow: inset 0 0 0 2px var(--encre);
+  background: var(--encre);
+  color: var(--fond);
 }
 
 .jour.selectionne {
-  background: var(--encre);
-  color: var(--fond);
+  box-shadow: inset 0 0 0 2px var(--encre);
+}
+
+/* Jour actuel ET sélectionné : case pleine avec un fin liseré intérieur */
+.jour.aujourdhui.selectionne {
+  box-shadow: inset 0 0 0 3px var(--encre), inset 0 0 0 5px var(--fond);
 }
 
 /* ---------- Panneau du jour (bas droite) ---------- */
@@ -198,7 +210,8 @@ button {
 
 .evenement {
   display: grid;
-  grid-template-columns: 3.5rem minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  column-gap: 0.75rem;
   align-items: baseline;
   gap: 0.5rem;
 }
@@ -222,7 +235,30 @@ button {
   color: var(--discret);
 }
 
-/* ---------- Formulaire d'ajout ---------- */
+/* ---------- Bouton et formulaire d'ajout ---------- */
+.ouvrir-ajout {
+  margin-top: 2.5rem;
+  padding: 0.2rem 0;
+  font-size: 1rem;
+  color: var(--discret);
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+
+.ouvrir-ajout:hover {
+  color: var(--encre);
+  transform: translateX(-4px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ouvrir-ajout:hover {
+    transform: none;
+  }
+}
+
+[hidden] {
+  display: none !important;
+}
+
 .formulaire {
   margin-top: 1.25rem;
   display: grid;
@@ -238,6 +274,22 @@ button {
 }
 
 .formulaire input::placeholder {
+  color: var(--discret);
+}
+
+.horaires {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.horaires label {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.horaires label span {
+  font-size: 0.9rem;
   color: var(--discret);
 }
 
@@ -286,6 +338,52 @@ button {
   background: currentColor;
 }
 
+/* ---------- Barre de fenêtre maison ---------- */
+.barre {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 40px; /* toute la marge au-dessus du cadre */
+  z-index: 10;
+}
+
+/* Miroir exact du sélecteur DARK / LIGHT : en haut à droite, contre le cadre,
+   lu de haut en bas (le sélecteur se lit de bas en haut) */
+.controles {
+  position: fixed;
+  right: 40px;
+  top: 50px; /* haut du cadre (40px) + 4px de trait + 6px d'espace */
+  width: 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  z-index: 11;
+}
+
+.controle {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  transition: color 0.15s ease;
+}
+
+.controle svg {
+  width: 1.8rem;
+  height: 1.8rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: square;
+}
+
+.controle:hover,
+.controle:focus-visible {
+  color: var(--discret);
+}
+
 /* ---------- Petites fenêtres ---------- */
 @media (max-width: 900px) {
   body {
@@ -294,7 +392,7 @@ button {
 
   .cadre {
     position: static;
-    margin: 24px 72px;
+    margin: 40px 72px 24px;
     min-height: calc(100vh - 48px);
     padding: 28px 20px;
     grid-template-columns: minmax(0, 1fr);
@@ -323,5 +421,9 @@ button {
   .theme {
     left: 12px;
     bottom: 34px;
+  }
+
+  .controles {
+    right: 12px;
   }
 }

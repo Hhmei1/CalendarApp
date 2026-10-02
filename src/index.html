@@ -9,6 +9,22 @@
   </head>
 
   <body>
+    <!-- Bande du haut : sert à déplacer la fenêtre (double-clic pour agrandir) -->
+    <div class="barre" data-tauri-drag-region></div>
+
+    <!-- Contrôles de fenêtre verticaux, en miroir du sélecteur de thème -->
+    <div class="controles" role="group" aria-label="Fenêtre">
+      <button type="button" class="controle" id="fenetre-fermer" aria-label="Fermer" title="Fermer">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5 L19 19 M19 5 L5 19" /></svg>
+      </button>
+      <button type="button" class="controle" id="fenetre-agrandir" aria-label="Agrandir" title="Agrandir">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" /></svg>
+      </button>
+      <button type="button" class="controle" id="fenetre-reduire" aria-label="Réduire" title="Réduire">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12 L19 12" /></svg>
+      </button>
+    </div>
+
     <!-- Sélecteur de thème vertical, hors du cadre -->
     <div class="theme" role="group" aria-label="Thème">
       <button type="button" class="theme-choix" data-theme-choix="dark">
@@ -29,7 +45,6 @@
         <button type="button" id="mois-precedent">Précédent</button>
         <button type="button" id="mois-suivant">Suivant</button>
         <button type="button" id="aller-aujourdhui">Aujourd'hui</button>
-        <button type="button" id="ajouter">Ajouter</button>
       </nav>
 
       <section class="mois" aria-labelledby="titre-mois">
@@ -45,6 +60,8 @@
         <ul id="liste-evenements" class="liste"></ul>
         <p id="vide" class="vide" hidden>Rien de prévu ce jour-là.</p>
 
+        <button type="button" id="ouvrir-ajout" class="ouvrir-ajout">Ajouter</button>
+
         <form id="formulaire" class="formulaire" hidden>
           <input
             id="champ-titre"
@@ -54,7 +71,16 @@
             autocomplete="off"
             required
           />
-          <input id="champ-heure" type="time" aria-label="Heure (facultative)" />
+          <div class="horaires">
+            <label>
+              <span>Début</span>
+              <input id="champ-debut" type="time" />
+            </label>
+            <label>
+              <span>Fin</span>
+              <input id="champ-fin" type="time" />
+            </label>
+          </div>
           <div class="actions">
             <button type="submit">Enregistrer</button>
             <button type="button" id="annuler">Annuler</button>
