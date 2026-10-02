@@ -63,27 +63,35 @@
         <button type="button" id="ouvrir-ajout" class="ouvrir-ajout">Ajouter</button>
 
         <form id="formulaire" class="formulaire" hidden>
-          <input
-            id="champ-titre"
-            type="text"
-            placeholder="Nouvel événement"
-            aria-label="Titre de l'événement"
-            autocomplete="off"
-            required
-          />
-          <div class="horaires">
-            <label>
-              <span>Début</span>
-              <input id="champ-debut" type="time" />
-            </label>
-            <label>
-              <span>Fin</span>
-              <input id="champ-fin" type="time" />
-            </label>
+          <div class="champs">
+            <input
+              id="champ-titre"
+              type="text"
+              placeholder="Nouvel événement"
+              aria-label="Titre de l'événement"
+              autocomplete="off"
+              required
+            />
+            <div class="horaires">
+              <label>
+                <span>Début</span>
+                <input id="champ-debut" type="time" />
+              </label>
+              <label>
+                <span>Fin</span>
+                <input id="champ-fin" type="time" />
+              </label>
+            </div>
           </div>
+
+          <!-- Valider / annuler : deux icônes à droite du bloc -->
           <div class="actions">
-            <button type="submit">Enregistrer</button>
-            <button type="button" id="annuler">Annuler</button>
+            <button type="submit" class="action" aria-label="Enregistrer" title="Enregistrer">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12.5 L9.5 18 L20 6" /></svg>
+            </button>
+            <button type="button" class="action" id="annuler" aria-label="Annuler" title="Annuler">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5 L19 19 M19 5 L5 19" /></svg>
+            </button>
           </div>
         </form>
       </aside>

@@ -275,10 +275,20 @@ button {
 .formulaire {
   margin-top: 1.25rem;
   display: grid;
+  grid-template-columns: minmax(0, 1fr) auto; /* champs à gauche, icônes à droite */
+  column-gap: 1rem;
+  align-items: start;
+}
+
+.champs {
+  display: grid;
   gap: 0.75rem;
+  min-width: 0;
 }
 
 .formulaire input {
+  width: 100%;
+  min-width: 0; /* un champ ne déborde jamais sur les icônes */
   background: none;
   border: none;
   border-bottom: 2px solid var(--encre);
@@ -298,7 +308,7 @@ button {
 
 .horaires {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 1.25rem;
 }
 
@@ -376,28 +386,38 @@ button {
   color: var(--fond);
 }
 
+/* Valider et annuler : empilés en bas à droite du bloc, contre les champs */
 .actions {
+  align-self: end;
   display: flex;
-  gap: 1.25rem;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
-.actions {
-  margin-top: 0.5rem;
-}
-
-/* Enregistrer / Annuler : même comportement que Précédent / Suivant */
-.actions button {
-  padding: 0.2rem 0;
+.action {
+  width: 2.25rem;
+  height: 2.25rem;
+  display: grid;
+  place-items: center;
   transition: color 0.15s ease, transform 0.15s ease;
 }
 
-.actions button:hover {
+.action svg {
+  width: 1.5rem;
+  height: 1.5rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: square;
+}
+
+.action:hover {
   color: var(--discret);
   transform: translateX(-4px);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .actions button:hover {
+  .action:hover {
     transform: none;
   }
 }
