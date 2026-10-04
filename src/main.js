@@ -1,9 +1,10 @@
+import { SUPABASE_URL, SUPABASE_CLE } from "./config.js";
+
 // ---------- Réglages ----------
 const NOMS_MOIS = [
   "janvier", "février", "mars", "avril", "mai", "juin",
   "juillet", "août", "septembre", "octobre", "novembre", "décembre",
 ];
-const CLE_EVENEMENTS = "calendrier.evenements";
 const CLE_THEME = "calendrier.theme";
 
 // ---------- Éléments de la page ----------
@@ -20,13 +21,26 @@ const el = {
   champTitre: $("champ-titre"),
   champDebut: $("champ-debut"),
   champFin: $("champ-fin"),
+  message: $("message"),
+  calendrier: $("calendrier"),
+  connexion: $("connexion"),
+  formConnexion: $("form-connexion"),
+  champEmail: $("champ-email"),
+  champMotDePasse: $("champ-mot-de-passe"),
+  erreurConnexion: $("erreur-connexion"),
 };
+
+// ---------- Supabase ----------
+const configOk = SUPABASE_URL.startsWith("https://") && !SUPABASE_CLE.includes("colle");
+const client = configOk && window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_CLE) : null;
+const COLONNES = "id, jour, titre, debut, fin";
 
 // ---------- État ----------
 let aujourdhui = new Date(); // date lue sur l'horloge de Windows
 let moisAffiche = new Date(aujourdhui.getFullYear(), aujourdhui.getMonth(), 1);
 let jourSelectionne = cleDate(aujourdhui);
-let evenements = chargerEvenements(); // { "2026-10-02": [{ id, titre, debut, fin }] }
+let evenements = {}; // { "2026-10-02": [{ id, titre, debut, fin }] }, copie locale de la base
+let connecte = false;
 
 // ---------- Outils ----------
 function cleDate(date) {
@@ -45,37 +59,53 @@ function majuscule(texte) {
   return texte.charAt(0).toUpperCase() + texte.slice(1);
 }
 
+function enMinutes(heure) {
+  const [h, m] = heure.split(":").map(Number);
+  return h * 60 + m;
+}
+
+// Un événement sans début ou sans fin compte comme « ponctuel » : part nulle
+function partDeLaJournee(ev) {
+  if (!ev.debut || !ev.fin) return 0;
+  return Math.max(0, enMinutes(ev.fin) - enMinutes(ev.debut)) / (24 * 60);
+}
+
 function texteHoraire(ev) {
   if (ev.debut && ev.fin) return `${ev.debut} – ${ev.fin}`;
   return ev.debut || "";
 }
 
-// Stockage local provisoire : remplacé par Supabase à l'étape suivante
-function chargerEvenements() {
-  try {
-    const donnees = JSON.parse(localStorage.getItem(CLE_EVENEMENTS)) ?? {};
-    // Les événements créés avec l'ancienne version avaient une seule « heure »
-    for (const liste of Object.values(donnees)) {
-      for (const ev of liste) {
-        if (ev.heure !== undefined && ev.debut === undefined) {
-          ev.debut = ev.heure;
-          ev.fin = "";
-          delete ev.heure;
-        }
-      }
-    }
-    return donnees;
-  } catch {
-    return {};
-  }
+// La base renvoie les heures sous la forme "14:30:00" : on garde "14:30"
+function versEvenement(ligne) {
+  return {
+    id: ligne.id,
+    titre: ligne.titre,
+    debut: ligne.debut ? ligne.debut.slice(0, 5) : "",
+    fin: ligne.fin ? ligne.fin.slice(0, 5) : "",
+  };
 }
 
-function sauvegarderEvenements() {
-  try {
-    localStorage.setItem(CLE_EVENEMENTS, JSON.stringify(evenements));
-  } catch {
-    // stockage indisponible : on garde les données en mémoire
+function afficherMessage(texte) {
+  el.message.textContent = texte;
+  el.message.hidden = !texte;
+}
+
+// Récupère tous les événements du compte et redessine le calendrier
+async function chargerDepuisServeur() {
+  if (!client || !connecte) return;
+  const { data, error } = await client.from("evenements").select(COLONNES).order("jour");
+  if (error) {
+    afficherMessage("Connexion au serveur impossible. Les données affichées ne sont peut-être pas à jour.");
+    return;
   }
+  const nouveaux = {};
+  for (const ligne of data) {
+    (nouveaux[ligne.jour] ??= []).push(versEvenement(ligne));
+  }
+  evenements = nouveaux;
+  afficherMessage("");
+  afficherGrille();
+  afficherPanneau();
 }
 
 // ---------- Affichage ----------
@@ -125,9 +155,15 @@ function afficherGrille() {
       const marques = document.createElement("span");
       marques.className = "marques";
       marques.setAttribute("aria-hidden", "true");
-      for (let k = 0; k < nb; k++) {
+      const tries = [...evenements[cle]].sort((a, b) =>
+        (a.debut || "99:99").localeCompare(b.debut || "99:99")
+      );
+      for (const ev of tries) {
         const marque = document.createElement("span");
         marque.className = "marque";
+        // Part de la journée occupée (0 à 1). La surface du carré y est
+        // proportionnelle, donc son côté suit la racine carrée.
+        marque.style.setProperty("--racine", Math.sqrt(partDeLaJournee(ev)).toFixed(3));
         marques.append(marque);
       }
       bouton.append(marques);
@@ -174,13 +210,16 @@ function afficherPanneau() {
     horaire.textContent = texteHoraire(ev);
 
     const titre = document.createElement("span");
+    titre.className = "titre";
     titre.textContent = ev.titre;
 
     const supprimer = document.createElement("button");
     supprimer.type = "button";
     supprimer.className = "supprimer";
-    supprimer.textContent = "Supprimer";
+    supprimer.innerHTML =
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5 L19 19 M19 5 L5 19" /></svg>';
     supprimer.setAttribute("aria-label", `Supprimer ${ev.titre}`);
+    supprimer.title = "Supprimer";
     supprimer.addEventListener("click", () => supprimerEvenement(ev.id));
 
     li.append(horaire, titre, supprimer);
@@ -206,18 +245,33 @@ function changerMois(ecart) {
   afficher();
 }
 
-function ajouterEvenement(titre, debut, fin) {
-  const liste = evenements[jourSelectionne] ?? [];
-  liste.push({ id: crypto.randomUUID(), titre, debut, fin });
-  evenements[jourSelectionne] = liste;
-  sauvegarderEvenements();
+async function ajouterEvenement(titre, debut, fin) {
+  const jour = jourSelectionne;
+  const { data, error } = await client
+    .from("evenements")
+    .insert({ jour, titre, debut: debut || null, fin: fin || null })
+    .select(COLONNES)
+    .single();
+  if (error) {
+    afficherMessage("L'événement n'a pas pu être enregistré. Vérifie ta connexion et réessaie.");
+    return false;
+  }
+  (evenements[jour] ??= []).push(versEvenement(data));
+  afficherMessage("");
+  return true;
 }
 
-function supprimerEvenement(id) {
-  const reste = (evenements[jourSelectionne] ?? []).filter((ev) => ev.id !== id);
-  if (reste.length) evenements[jourSelectionne] = reste;
-  else delete evenements[jourSelectionne];
-  sauvegarderEvenements();
+async function supprimerEvenement(id) {
+  const jour = jourSelectionne;
+  const { error } = await client.from("evenements").delete().eq("id", id);
+  if (error) {
+    afficherMessage("La suppression n'a pas pu se faire. Vérifie ta connexion et réessaie.");
+    return;
+  }
+  const reste = (evenements[jour] ?? []).filter((ev) => ev.id !== id);
+  if (reste.length) evenements[jour] = reste;
+  else delete evenements[jour];
+  afficherMessage("");
   afficher();
 }
 
@@ -405,15 +459,22 @@ $("annuler").addEventListener("click", fermerFormulaire);
 el.champDebut.addEventListener("input", verifierHoraires);
 el.champFin.addEventListener("input", verifierHoraires);
 
-el.formulaire.addEventListener("submit", (e) => {
+let enregistrementEnCours = false;
+
+el.formulaire.addEventListener("submit", async (e) => {
   e.preventDefault();
+  if (enregistrementEnCours) return;
   verifierHoraires();
   if (!el.formulaire.reportValidity()) return;
 
   const titre = el.champTitre.value.trim();
   if (!titre) return;
 
-  ajouterEvenement(titre, el.champDebut.value, el.champFin.value);
+  enregistrementEnCours = true;
+  const ok = await ajouterEvenement(titre, el.champDebut.value, el.champFin.value);
+  enregistrementEnCours = false;
+  if (!ok) return; // le formulaire reste ouvert pour réessayer
+
   fermerFormulaire();
   afficherGrille();
   afficherPanneau();
@@ -433,6 +494,49 @@ document.addEventListener("keydown", (e) => {
 document.querySelectorAll("[data-theme-choix]").forEach((bouton) => {
   bouton.addEventListener("click", () => appliquerTheme(bouton.dataset.themeChoix));
 });
+
+// ---------- Connexion ----------
+function montrerEcran(estConnecte) {
+  connecte = estConnecte;
+  el.calendrier.hidden = !estConnecte;
+  el.connexion.hidden = estConnecte;
+  $("deconnexion").hidden = !estConnecte;
+  if (estConnecte) {
+    chargerDepuisServeur();
+  } else {
+    evenements = {};
+    fermerFormulaire();
+    afficher();
+    el.champEmail.focus();
+  }
+}
+
+el.formConnexion.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (!client) return;
+  el.erreurConnexion.hidden = true;
+
+  const { error } = await client.auth.signInWithPassword({
+    email: el.champEmail.value.trim(),
+    password: el.champMotDePasse.value,
+  });
+  if (error) {
+    el.erreurConnexion.textContent =
+      error.status === 400
+        ? "E-mail ou mot de passe incorrect."
+        : "Connexion au serveur impossible. Vérifie ta connexion internet.";
+    el.erreurConnexion.hidden = false;
+    return;
+  }
+  el.formConnexion.reset();
+});
+
+$("deconnexion").addEventListener("click", () => client?.auth.signOut());
+
+// ---------- Synchronisation ----------
+// On relit la base quand on revient sur la fenêtre, et toutes les minutes
+window.addEventListener("focus", chargerDepuisServeur);
+setInterval(chargerDepuisServeur, 60 * 1000);
 
 // ---------- Passage à minuit ----------
 // Toutes les minutes, on relit l'horloge : si le jour a changé, on met tout à jour
@@ -463,3 +567,21 @@ try {
 }
 appliquerTheme(themeInitial);
 afficher();
+
+if (!client) {
+  // Configuration absente ou bibliothèque Supabase introuvable
+  el.connexion.hidden = false;
+  el.erreurConnexion.textContent = !configOk
+    ? "Renseigne l'URL et la clé de ton projet dans src/config.js."
+    : "Bibliothèque Supabase introuvable : vérifie le fichier src/lib/supabase.js.";
+  el.erreurConnexion.hidden = false;
+} else {
+  // Supabase mémorise la session : si on s'est déjà connecté, on arrive direct au calendrier
+  const { data } = await client.auth.getSession();
+  montrerEcran(Boolean(data.session));
+  client.auth.onAuthStateChange((evenement, session) => {
+    if (evenement === "SIGNED_IN" && !connecte) montrerEcran(true);
+    if (evenement === "SIGNED_OUT") montrerEcran(false);
+    if (!session && connecte) montrerEcran(false);
+  });
+}

@@ -3,9 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Calendrier</title>
+    <title>H_Calendar</title>
     <link rel="stylesheet" href="styles.css" />
-    <script type="module" src="/main.js" defer></script>
+    <!-- Bibliothèque Supabase, copiée depuis node_modules (voir le guide) -->
+    <script src="/lib/supabase.js"></script>
+    <script type="module" src="/main.js"></script>
   </head>
 
   <body>
@@ -25,6 +27,11 @@
       </button>
     </div>
 
+    <!-- Déconnexion : petite icône discrète en bas à droite, hors du cadre -->
+    <button type="button" id="deconnexion" class="deconnexion" aria-label="Se déconnecter" title="Se déconnecter" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4 H5 V20 H10 M14 8 L18 12 L14 16 M18 12 H9" /></svg>
+    </button>
+
     <!-- Sélecteur de thème vertical, hors du cadre -->
     <div class="theme" role="group" aria-label="Thème">
       <button type="button" class="theme-choix" data-theme-choix="dark">
@@ -35,7 +42,30 @@
       </button>
     </div>
 
-    <main class="cadre">
+    <!-- Écran de connexion : affiché une seule fois par appareil -->
+    <main id="connexion" class="cadre cadre-connexion" hidden>
+      <header class="entete">
+        <h1>H_Calendar</h1>
+        <p class="sous-titre">Connexion</p>
+      </header>
+
+      <form id="form-connexion" class="formulaire form-connexion">
+        <div class="champs">
+          <input id="champ-email" type="email" placeholder="E-mail" aria-label="E-mail"
+                 autocomplete="username" required />
+          <input id="champ-mot-de-passe" type="password" placeholder="Mot de passe"
+                 aria-label="Mot de passe" autocomplete="current-password" required />
+        </div>
+        <div class="actions">
+          <button type="submit" class="action" aria-label="Se connecter" title="Se connecter">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12.5 L9.5 18 L20 6" /></svg>
+          </button>
+        </div>
+      </form>
+      <p id="erreur-connexion" class="message" hidden></p>
+    </main>
+
+    <main id="calendrier" class="cadre" hidden>
       <header class="entete">
         <h1 id="titre-mois"></h1>
         <p id="date-du-jour" class="sous-titre"></p>
@@ -57,6 +87,7 @@
 
       <aside class="panneau" aria-live="polite">
         <h2 id="titre-jour"></h2>
+        <p id="message" class="message" hidden></p>
         <ul id="liste-evenements" class="liste"></ul>
         <p id="vide" class="vide" hidden>Rien de prévu ce jour-là.</p>
 

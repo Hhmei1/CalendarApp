@@ -171,12 +171,19 @@ button {
 .marques {
   display: flex;
   flex-wrap: wrap;
+  align-items: flex-start;
   gap: 0.25rem;
 }
 
+/* Taille proportionnelle à la durée : une journée entière remplirait toute
+   la place libre sous le numéro ; un événement court ou sans horaire garde
+   la taille minimale. */
 .marque {
-  width: 0.45rem;
-  height: 0.45rem;
+  --racine: 0;
+  --taille: max(0.45rem, calc(var(--racine) * (var(--case) - 2.9rem)));
+  width: var(--taille);
+  height: var(--taille);
+  flex-shrink: 0;
   background: currentColor;
 }
 
@@ -220,30 +227,67 @@ button {
 .liste {
   list-style: none;
   display: grid;
-  gap: 0.5rem;
+  gap: 0.9rem;
 }
 
+/* L'horaire au-dessus, le titre sur toute la largeur, la croix à droite */
 .evenement {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "heure supprimer"
+    "titre supprimer";
   column-gap: 0.75rem;
-  align-items: baseline;
-  gap: 0.5rem;
+  row-gap: 0.15rem;
+  align-items: start;
 }
 
 .evenement .heure {
+  grid-area: heure;
+  font-size: 0.85rem;
   color: var(--discret);
   font-variant-numeric: tabular-nums;
 }
 
+.evenement .heure:empty {
+  display: none;
+}
+
+.evenement .titre {
+  grid-area: titre;
+  font-size: 1rem; /* un poil plus petit que le jour (1.15rem) */
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+/* Petite croix de suppression, visible au survol de l'événement */
 .evenement .supprimer {
-  font-size: 0.9rem;
+  grid-area: supprimer;
+  align-self: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: grid;
+  place-items: center;
   opacity: 0;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+
+.evenement .supprimer svg {
+  width: 0.9rem;
+  height: 0.9rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: square;
 }
 
 .evenement:hover .supprimer,
 .evenement .supprimer:focus-visible {
   opacity: 1;
+}
+
+.evenement .supprimer:hover {
+  color: var(--discret);
 }
 
 .vide {
@@ -424,6 +468,51 @@ button {
   }
 }
 
+/* ---------- Connexion et messages ---------- */
+.cadre-connexion {
+  display: block;
+}
+
+.form-connexion {
+  margin-top: 3.5rem;
+  max-width: 22rem;
+}
+
+.message {
+  margin-top: 1rem;
+  font-size: 0.95rem;
+  color: var(--discret);
+}
+
+/* Déconnexion : en bas à droite, en miroir du sélecteur de thème.
+   Grise et petite pour se faire oublier. */
+.deconnexion {
+  position: fixed;
+  right: 0;
+  bottom: 50px;
+  width: var(--marge-cote);
+  height: 48px;
+  display: grid;
+  place-items: center;
+  color: var(--discret);
+  transition: color 0.15s ease;
+  z-index: 11;
+}
+
+.deconnexion svg {
+  width: 1.3rem;
+  height: 1.3rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: square;
+}
+
+.deconnexion:hover,
+.deconnexion:focus-visible {
+  color: var(--encre);
+}
+
 /* ---------- Sélecteur DARK / LIGHT vertical ---------- */
 .theme {
   position: fixed;
@@ -543,5 +632,10 @@ button {
 
   .controles {
     right: 12px;
+  }
+
+  .deconnexion {
+    right: 12px;
+    bottom: 34px;
   }
 }
