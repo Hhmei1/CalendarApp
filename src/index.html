@@ -2,7 +2,7 @@
 <html lang="fr" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>H_Calendar</title>
     <link rel="stylesheet" href="styles.css" />
     <!-- Bibliothèque Supabase, copiée depuis node_modules (voir le guide) -->
@@ -29,7 +29,7 @@
 
     <!-- Déconnexion : petite icône discrète en bas à droite, hors du cadre -->
     <button type="button" id="deconnexion" class="deconnexion" aria-label="Se déconnecter" title="Se déconnecter" hidden>
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4 H5 V20 H10 M14 8 L18 12 L14 16 M18 12 H9" /></svg>
+      <svg viewBox="4 3 15 18" aria-hidden="true"><path d="M10 4 H5 V20 H10 M14 8 L18 12 L14 16 M18 12 H9" /></svg>
     </button>
 
     <!-- Sélecteur de thème vertical, hors du cadre -->
@@ -67,13 +67,20 @@
 
     <main id="calendrier" class="cadre" hidden>
       <header class="entete">
-        <h1 id="titre-mois"></h1>
-        <p id="date-du-jour" class="sous-titre"></p>
+        <!-- En grand : aujourd'hui. En dessous : le mois qu'on parcourt -->
+        <h1 id="date-du-jour"></h1>
+        <p id="titre-mois" class="sous-titre"></p>
       </header>
 
       <nav class="navigation" aria-label="Navigation du calendrier">
-        <button type="button" id="mois-precedent">Précédent</button>
-        <button type="button" id="mois-suivant">Suivant</button>
+        <button type="button" id="mois-precedent" aria-label="Mois précédent">
+          <span class="texte">Précédent</span>
+          <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5 L8 12 L15 19" /></svg>
+        </button>
+        <button type="button" id="mois-suivant" aria-label="Mois suivant">
+          <span class="texte">Suivant</span>
+          <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5 L16 12 L9 19" /></svg>
+        </button>
         <button type="button" id="aller-aujourdhui">Aujourd'hui</button>
       </nav>
 
@@ -94,6 +101,8 @@
         <button type="button" id="ouvrir-ajout" class="ouvrir-ajout">Ajouter</button>
 
         <form id="formulaire" class="formulaire" hidden>
+          <!-- Sur téléphone, le formulaire monte du bas : on rappelle le jour concerné -->
+          <p id="jour-formulaire" class="jour-formulaire"></p>
           <div class="champs">
             <input
               id="champ-titre"
@@ -113,6 +122,8 @@
                 <input id="champ-fin" type="time" />
               </label>
             </div>
+            <!-- Sur téléphone, les colonnes d'heures s'affichent ici, sur toute la largeur -->
+            <div id="zone-heures" class="zone-heures"></div>
           </div>
 
           <!-- Valider / annuler : deux icônes à droite du bloc -->
@@ -127,5 +138,8 @@
         </form>
       </aside>
     </main>
+
+    <!-- Voile derrière le formulaire sur téléphone : le toucher ferme le formulaire -->
+    <div id="voile" class="voile" hidden></div>
   </body>
 </html>

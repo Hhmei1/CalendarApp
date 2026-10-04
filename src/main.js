@@ -28,6 +28,9 @@ const el = {
   champEmail: $("champ-email"),
   champMotDePasse: $("champ-mot-de-passe"),
   erreurConnexion: $("erreur-connexion"),
+  jourFormulaire: $("jour-formulaire"),
+  zoneHeures: $("zone-heures"),
+  voile: $("voile"),
 };
 
 // ---------- Supabase ----------
@@ -119,9 +122,7 @@ function afficherEntete() {
   el.titreMois.textContent =
     `${majuscule(NOMS_MOIS[moisAffiche.getMonth()])} ${moisAffiche.getFullYear()}`;
   el.dateDuJour.textContent = majuscule(
-    aujourdhui.toLocaleDateString("fr-FR", {
-      weekday: "long", day: "numeric", month: "long", year: "numeric",
-    })
+    aujourdhui.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })
   );
 }
 
@@ -189,7 +190,41 @@ function afficherGrille() {
   }
 }
 
+// Petites animations de la liste (téléphone uniquement)
+function replier(element, absorberEcart = true) {
+  const hauteur = element.offsetHeight;
+  const fin = { height: "0px", opacity: 0, overflow: "hidden" };
+  if (absorberEcart) fin.marginTop = "-0.9rem"; // l'espace avec l'élément du dessus se resserre aussi
+  return element
+    .animate(
+      [{ height: `${hauteur}px`, opacity: 1, overflow: "hidden" }, fin],
+      { duration: 240, easing: "cubic-bezier(0.4, 0, 0.2, 1)", fill: "forwards" }
+    )
+    .finished.then(() => true)
+    .catch(() => false); // false : animation annulée (rouvert entre-temps)
+}
+
+function deplier(element) {
+  const hauteur = element.offsetHeight;
+  element.animate(
+    [
+      { height: "0px", opacity: 0, overflow: "hidden" },
+      { height: `${hauteur}px`, opacity: 1, overflow: "hidden" },
+    ],
+    { duration: 280, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" }
+  );
+}
+
+function fondu(...elements) {
+  for (const e of elements) {
+    e.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: "ease-out" });
+  }
+}
+
+let jourAffichePanneau = null;
+
 function afficherPanneau() {
+  jourAffichePanneau = jourSelectionne;
   const date = dateDepuisCle(jourSelectionne);
   el.titreJour.textContent = majuscule(
     date.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })
@@ -204,6 +239,7 @@ function afficherPanneau() {
   for (const ev of liste) {
     const li = document.createElement("li");
     li.className = "evenement";
+    li.dataset.id = ev.id;
 
     const horaire = document.createElement("span");
     horaire.className = "heure";
@@ -220,9 +256,19 @@ function afficherPanneau() {
       '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5 L19 19 M19 5 L5 19" /></svg>';
     supprimer.setAttribute("aria-label", `Supprimer ${ev.titre}`);
     supprimer.title = "Supprimer";
-    supprimer.addEventListener("click", () => supprimerEvenement(ev.id));
+    supprimer.addEventListener("click", async () => {
+      // Sur téléphone, l'événement se replie avant de disparaître
+      if (!mouvementReduit) {
+        await replier(li);
+      }
+      supprimerEvenement(ev.id);
+    });
 
-    li.append(horaire, titre, supprimer);
+    const contenu = document.createElement("div");
+    contenu.className = "contenu";
+    contenu.append(horaire, titre);
+
+    li.append(contenu, supprimer);
     el.liste.append(li);
   }
 
@@ -230,14 +276,43 @@ function afficherPanneau() {
 }
 
 // ---------- Actions ----------
+// Sur téléphone, quand le contenu raccourcit (jour avec moins d'événements,
+// suppression), la page remonterait d'un coup. On garde un instant l'ancienne
+// hauteur, on remonte en douceur juste ce qu'il faut, puis on la relâche.
+function afficherEnDouceur(miseAJour) {
+  const cadre = el.calendrier;
+  const panneau = el.liste.closest(".panneau");
+  if (!estMobile || mouvementReduit || cadre.scrollTop === 0) {
+    miseAJour();
+    return;
+  }
+  panneau.style.minHeight = `${panneau.offsetHeight}px`;
+  miseAJour();
+  const naturel = el.ouvrirAjout.getBoundingClientRect().bottom - panneau.getBoundingClientRect().top;
+  const enTrop = Math.max(0, panneau.offsetHeight - naturel);
+  const cible = Math.max(0, Math.min(cadre.scrollTop, cadre.scrollHeight - enTrop - cadre.clientHeight));
+  const liberer = () => { panneau.style.minHeight = ""; };
+  if (cible >= cadre.scrollTop - 1) {
+    liberer();
+    return;
+  }
+  cadre.scrollTo({ top: cible, behavior: "smooth" });
+  let fini = false;
+  const terminer = () => { if (!fini) { fini = true; liberer(); } };
+  cadre.addEventListener("scrollend", terminer, { once: true });
+  setTimeout(terminer, 600); // au cas où « scrollend » n'arrive pas
+}
+
 function selectionnerJour(cle) {
   jourSelectionne = cle;
   const date = dateDepuisCle(cle);
   if (date.getMonth() !== moisAffiche.getMonth() || date.getFullYear() !== moisAffiche.getFullYear()) {
     moisAffiche = new Date(date.getFullYear(), date.getMonth(), 1);
   }
-  afficher();
-  el.grille.querySelector(`[data-cle="${cle}"]`)?.focus();
+  const autreJour = cle !== jourAffichePanneau;
+  afficherEnDouceur(afficher);
+  if (autreJour && !mouvementReduit) fondu(el.titreJour, el.liste, el.vide);
+  el.grille.querySelector(`[data-cle="${cle}"]`)?.focus({ preventScroll: true });
 }
 
 function changerMois(ecart) {
@@ -272,7 +347,7 @@ async function supprimerEvenement(id) {
   if (reste.length) evenements[jour] = reste;
   else delete evenements[jour];
   afficherMessage("");
-  afficher();
+  afficherEnDouceur(afficher);
 }
 
 // Vérifie que la fin vient après le début, et qu'une fin a bien un début
@@ -291,9 +366,24 @@ const MINUTES = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, "
 
 let listeOuverte = null;
 
+// La liste se replie au lieu de disparaître d'un coup : l'écran remonte
+// en douceur au lieu de sauter quand la place qu'elle occupait disparaît
 function fermerListeHeures() {
-  listeOuverte?.remove();
+  const liste = listeOuverte;
   listeOuverte = null;
+  if (!liste) return;
+  $(liste.dataset.pour)?.classList.remove("actif");
+  if (mouvementReduit) {
+    liste.remove();
+    return;
+  }
+  liste.style.pointerEvents = "none";
+  liste
+    .animate(
+      [{ height: `${liste.offsetHeight}px`, opacity: 1 }, { height: "0px", opacity: 0 }],
+      { duration: 260, easing: "cubic-bezier(0.4, 0, 0.2, 1)" }
+    )
+    .finished.then(() => liste.remove());
 }
 
 function creerColonne(valeurs, nom, auChoix) {
@@ -331,6 +421,8 @@ function marquer(colonne, valeur) {
 
 function ouvrirListeHeures(champ) {
   fermerListeHeures();
+  // Une liste encore en train de se replier laisse aussitôt la place
+  document.querySelectorAll(".liste-heures").forEach((l) => l.remove());
 
   // Heure de référence pour placer les colonnes : la valeur du champ,
   // sinon début + 1h pour la fin, sinon 08:00
@@ -356,11 +448,15 @@ function ouvrirListeHeures(champ) {
     marquer(colonneMinutes, m ?? "00");
   });
 
-  // Choisir les minutes : on garde l'heure (ou celle de référence), puis on ferme
+  // Choisir les minutes : on garde l'heure (ou celle de référence).
+  // Sur PC, la liste se ferme ; sur téléphone, elle reste ouverte pour pouvoir
+  // corriger un mauvais toucher (elle se ferme en touchant ailleurs)
   const colonneMinutes = creerColonne(MINUTES, "Minutes", (m) => {
     const [h] = valeurActuelle();
     ecrire(h ?? hRef, m);
-    fermerListeHeures();
+    marquer(colonneHeures, h ?? hRef);
+    marquer(colonneMinutes, m);
+    if (!estMobile) fermerListeHeures();
   });
 
   const [hVal, mVal] = valeurActuelle();
@@ -370,7 +466,10 @@ function ouvrirListeHeures(champ) {
   const conteneur = document.createElement("div");
   conteneur.className = "liste-heures";
   conteneur.append(colonneHeures, colonneMinutes);
-  champ.closest("label").append(conteneur);
+  conteneur.dataset.pour = champ.id;
+  // Sur téléphone, sous les champs sur toute la largeur ; sur PC, sous le champ
+  (estMobile ? el.zoneHeures : champ.closest("label")).append(conteneur);
+  champ.classList.add("actif");
   listeOuverte = conteneur;
 
   // On fait défiler chaque colonne jusqu'à la valeur de référence
@@ -380,31 +479,232 @@ function ouvrirListeHeures(champ) {
   };
   viser(colonneHeures, hRef);
   viser(colonneMinutes, mRef);
+
+  // Sur téléphone : la liste se déplie, et l'écran descend pour la montrer
+  if (!mouvementReduit) {
+    conteneur.animate(
+      [{ height: "0px", opacity: 0 }, { height: `${conteneur.offsetHeight}px`, opacity: 1 }],
+      { duration: 220, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" }
+    );
+  }
+  if (!estMobile) conteneur.scrollIntoView({ block: "nearest", behavior: "smooth" });
+}
+
+// ---------- Sélecteur d'heure sur téléphone : toujours affiché dans le panneau ----------
+// Les colonnes restent en place tant que le panneau est ouvert : toucher « Début »
+// ou « Fin » change seulement le champ qu'elles remplissent, sans rien replier.
+let champCible = null;
+let selecteurMobile = null;
+
+function referenceDe(champ) {
+  let reference = champ.value;
+  if (!reference && champ === el.champFin && el.champDebut.value) {
+    const [h, m] = el.champDebut.value.split(":");
+    reference = `${String(Math.min(Number(h) + 1, 23)).padStart(2, "0")}:${m}`;
+  }
+  return (reference || "08:00").split(":");
+}
+
+function construireSelecteurMobile() {
+  const valeur = () => (champCible.value ? champCible.value.split(":") : [null, null]);
+  const ecrire = (h, m) => {
+    champCible.value = `${h}:${m}`;
+    champCible.dispatchEvent(new Event("input", { bubbles: true }));
+    marquerSelecteur();
+  };
+  const heures = creerColonne(HEURES, "Heures", (h) => {
+    const [, m] = valeur();
+    ecrire(h, m ?? "00");
+  });
+  const minutes = creerColonne(MINUTES, "Minutes", (m) => {
+    const [h] = valeur();
+    ecrire(h ?? referenceDe(champCible)[0], m);
+  });
+  selecteurMobile = document.createElement("div");
+  selecteurMobile.className = "liste-heures";
+  selecteurMobile.append(heures, minutes);
+  el.zoneHeures.replaceChildren(selecteurMobile);
+}
+
+function marquerSelecteur() {
+  if (!champCible || !selecteurMobile) return;
+  const [h, m] = champCible.value ? champCible.value.split(":") : [null, null];
+  const [heures, minutes] = selecteurMobile.querySelectorAll(".colonne");
+  marquer(heures, h);
+  marquer(minutes, m);
+}
+
+function ciblerChamp(champ, enDouceur = true) {
+  // Premier toucher sur une heure : les colonnes se déplient (elles restent
+  // ensuite dépliées jusqu'à la fermeture du panneau)
+  if (el.zoneHeures.hidden) {
+    el.zoneHeures.hidden = false;
+    enDouceur = false; // on place les colonnes d'emblée, c'est le dépliement qui anime
+    if (!mouvementReduit) {
+      el.zoneHeures.animate(
+        [
+          { height: "0px", opacity: 0, overflow: "hidden" },
+          { height: `${el.zoneHeures.offsetHeight}px`, opacity: 1, overflow: "hidden" },
+        ],
+        { duration: 260, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" }
+      );
+    }
+  }
+  champCible = champ;
+  el.champDebut.classList.toggle("actif", champ === el.champDebut);
+  el.champFin.classList.toggle("actif", champ === el.champFin);
+  marquerSelecteur();
+  // Les colonnes défilent jusqu'à l'heure utile, sans que le panneau bouge
+  const [hRef, mRef] = referenceDe(champ);
+  const [heures, minutes] = selecteurMobile.querySelectorAll(".colonne");
+  for (const [colonne, valeur] of [[heures, hRef], [minutes, mRef]]) {
+    const bouton = [...colonne.querySelectorAll("button")].find((b) => b.dataset.valeur >= valeur);
+    if (bouton) colonne.scrollTo({ top: bouton.parentElement.offsetTop, behavior: enDouceur ? "smooth" : "auto" });
+  }
 }
 
 for (const champ of [el.champDebut, el.champFin]) {
   champ.addEventListener("click", () => {
-    if (!listeOuverte || !champ.closest("label").contains(listeOuverte)) ouvrirListeHeures(champ);
+    if (estMobile) {
+      ciblerChamp(champ);
+      return;
+    }
+    if (!listeOuverte || listeOuverte.dataset.pour !== champ.id) ouvrirListeHeures(champ);
   });
-  champ.addEventListener("blur", fermerListeHeures);
+  champ.addEventListener("blur", () => {
+    if (!estMobile) fermerListeHeures();
+  });
   champ.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && listeOuverte) fermerListeHeures();
   });
 }
 
 // ---------- Ouverture / fermeture du formulaire ----------
+let ouvertureFormulaire = 0;
+
 function ouvrirFormulaire() {
+  el.formulaire.getAnimations().forEach((a) => a.cancel());
+  el.voile.getAnimations().forEach((a) => a.cancel());
   el.formulaire.hidden = false;
   el.ouvrirAjout.hidden = true;
+
+  if (estMobile) {
+    // Le panneau monte du bas de l'écran, la page s'efface derrière un voile
+    ouvertureFormulaire = Date.now();
+    el.jourFormulaire.textContent = majuscule(
+      dateDepuisCle(jourSelectionne).toLocaleDateString("fr-FR", {
+        weekday: "long", day: "numeric", month: "long",
+      })
+    );
+    el.voile.hidden = false;
+    // À l'ouverture : juste le titre (et le clavier). Les heures attendent
+    // qu'on touche « Début » ou « Fin » pour se déplier.
+    construireSelecteurMobile();
+    champCible = null;
+    el.zoneHeures.hidden = true;
+    if (!mouvementReduit) {
+      el.formulaire.animate(
+        [{ transform: "translateY(calc(100% + 20px))" }, { transform: "translateY(0)" }],
+        { duration: 280, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" }
+      );
+      el.voile.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 280 });
+    }
+  } else {
+    if (!mouvementReduit) deplier(el.formulaire);
+    el.formulaire.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }
   el.champTitre.focus();
 }
 
 function fermerFormulaire() {
-  fermerListeHeures();
-  el.formulaire.reset();
+  if (!estMobile) {
+    fermerListeHeures();
+    document.querySelectorAll(".liste-heures").forEach((l) => l.remove());
+  }
   el.champFin.setCustomValidity("");
-  el.formulaire.hidden = true;
-  el.ouvrirAjout.hidden = false;
+  const afficherBoutonAjout = (delai) => {
+    el.ouvrirAjout.hidden = false;
+    if (!mouvementReduit) {
+      el.ouvrirAjout.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, delay: delai, fill: "backwards" });
+    }
+  };
+
+  const terminer = () => {
+    el.formulaire.reset();
+    el.formulaire.hidden = true;
+    el.voile.hidden = true;
+    el.zoneHeures.replaceChildren();
+    el.zoneHeures.hidden = true;
+    champCible = null;
+    el.champDebut.classList.remove("actif");
+    el.champFin.classList.remove("actif");
+  };
+  if (mouvementReduit || el.formulaire.hidden) {
+    terminer();
+    el.ouvrirAjout.hidden = false;
+    return;
+  }
+  if (!estMobile) {
+    // Sur PC : le formulaire se replie, puis « Ajouter » revient en fondu
+    replier(el.formulaire, false).then((termine) => {
+      if (!termine) return;
+      terminer();
+      el.formulaire.getAnimations().forEach((a) => a.cancel());
+      afficherBoutonAjout(0);
+    });
+    return;
+  }
+  afficherBoutonAjout(150);
+  // Le panneau redescend, puis disparaît
+  document.activeElement?.blur(); // range le clavier
+  el.voile.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 300, fill: "forwards" })
+    .finished.then((a) => { el.voile.hidden = true; a.cancel(); })
+    .catch(() => {}); // réouvert entre-temps : on ne touche à rien
+  el.formulaire
+    .animate(
+      [{ transform: "translateY(0)" }, { transform: "translateY(calc(100% + 20px))" }],
+      // Démarre en douceur et ralentit en fin de course : plus de retour « sec »
+      { duration: 300, easing: "cubic-bezier(0.4, 0, 0.2, 1)", fill: "forwards" }
+    )
+    .finished.then((a) => {
+      terminer();
+      a.cancel();
+    })
+    .catch(() => {});
+}
+
+// ---------- Téléphone ----------
+const estMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
+if (estMobile) {
+  document.documentElement.classList.add("mobile");
+  // Retour visuel au doigt : le bouton touché porte la classe « appuye »
+  // jusqu'au relâchement (ou jusqu'à ce que le doigt parte faire défiler)
+  let boutonAppuye = null;
+  const relacher = () => {
+    boutonAppuye?.classList.remove("appuye");
+    boutonAppuye = null;
+  };
+  let pointDepart = null;
+  document.addEventListener("pointerdown", (e) => {
+    relacher();
+    pointDepart = { x: e.clientX, y: e.clientY };
+    boutonAppuye = e.target.closest("button");
+    boutonAppuye?.classList.add("appuye");
+  });
+  // Si le doigt se met à glisser (changer de mois, défiler), ce n'est plus un appui
+  document.addEventListener("pointermove", (e) => {
+    if (boutonAppuye && Math.hypot(e.clientX - pointDepart.x, e.clientY - pointDepart.y) > 10) relacher();
+  });
+  for (const type of ["pointerup", "pointercancel"]) {
+    document.addEventListener(type, relacher);
+  }
+  // Les champs d'heure ne s'écrivent qu'avec notre sélecteur :
+  // sinon Android ouvre en plus sa propre horloge
+  el.champDebut.readOnly = true;
+  el.champFin.readOnly = true;
+  // Le formulaire flotte au-dessus de tout : on le sort du cadre pour qu'il
+  // passe devant le voile (sinon il resterait « dans » le cadre, derrière)
+  document.body.append(el.formulaire);
 }
 
 // ---------- Fenêtre (Tauri) ----------
@@ -417,7 +717,7 @@ async function basculerPleinEcran() {
   await fenetre.setFullscreen(!plein);
 }
 
-if (fenetre) {
+if (fenetre && !estMobile) {
   $("fenetre-reduire").addEventListener("click", () => fenetre.minimize());
   $("fenetre-agrandir").addEventListener("click", () => fenetre.toggleMaximize());
   $("fenetre-fermer").addEventListener("click", () => fenetre.close());
@@ -439,9 +739,24 @@ function appliquerTheme(theme) {
 }
 
 // ---------- Écouteurs ----------
-$("mois-precedent").addEventListener("click", () => changerMois(-1));
-$("mois-suivant").addEventListener("click", () => changerMois(1));
-$("aller-aujourdhui").addEventListener("click", () => selectionnerJour(cleDate(aujourdhui)));
+$("mois-precedent").addEventListener("click", () => naviguerMois(-1));
+$("mois-suivant").addEventListener("click", () => naviguerMois(1));
+$("aller-aujourdhui").addEventListener("click", async () => {
+  const cle = cleDate(aujourdhui);
+  const ecart =
+    (aujourdhui.getFullYear() - moisAffiche.getFullYear()) * 12 + aujourdhui.getMonth() - moisAffiche.getMonth();
+  if (ecart && !mouvementReduit) {
+    // Une seule glissade dans le bon sens, même si on était loin
+    await naviguerMois(Math.sign(ecart), 0, () => {
+      jourSelectionne = cle;
+      moisAffiche = new Date(aujourdhui.getFullYear(), aujourdhui.getMonth(), 1);
+      afficher();
+    });
+  } else {
+    selectionnerJour(cle);
+  }
+  if (estMobile) el.calendrier.scrollTo({ top: 0, behavior: mouvementReduit ? "auto" : "smooth" });
+});
 
 el.grille.addEventListener("click", (e) => {
   const jour = e.target.closest(".jour");
@@ -453,7 +768,180 @@ el.grille.addEventListener("dblclick", (e) => {
   if (e.target.closest(".jour")) ouvrirFormulaire();
 });
 
+// Au doigt : la grille suit le doigt, puis glisse vers le mois suivant ou précédent
+const zoneMois = el.grille.closest(".mois");
+const mouvementReduit = matchMedia("(prefers-reduced-motion: reduce)").matches;
+let glisse = null; // { x, y, sens: null | "h" | "v" }
+let animationEnCours = false;
+
+// Change de mois avec une glissade : l'ancien mois part d'un côté, le nouveau arrive de l'autre.
+// « depart » : décalage actuel de la grille (en px) quand on suit le doigt
+async function naviguerMois(ecart, depart = 0, changement = () => changerMois(ecart)) {
+  if (mouvementReduit) {
+    changement();
+    return;
+  }
+  if (animationEnCours) return;
+  animationEnCours = true;
+  const largeur = zoneMois.clientWidth;
+  const sortie = ecart > 0 ? -largeur : largeur;
+
+  await el.grille.animate(
+    [
+      { transform: `translateX(${depart}px)`, opacity: 1 - Math.min(Math.abs(depart) / largeur, 0.6) },
+      { transform: `translateX(${sortie * 0.6}px)`, opacity: 0 },
+    ],
+    { duration: 160, easing: "ease-in", fill: "forwards" }
+  ).finished;
+
+  changement();
+  fondu(el.titreMois);
+
+  const arrivee = el.grille.animate(
+    [
+      { transform: `translateX(${-sortie * 0.4}px)`, opacity: 0 },
+      { transform: "translateX(0)", opacity: 1 },
+    ],
+    { duration: 240, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" }
+  );
+  // On efface l'animation de sortie restée « figée » sur la grille
+  el.grille.getAnimations().forEach((a) => a !== arrivee && a.cancel());
+  await arrivee.finished;
+  animationEnCours = false;
+}
+
+zoneMois.addEventListener("touchstart", (e) => {
+  if (animationEnCours) return;
+  const t = e.touches[0];
+  glisse = { x: t.clientX, y: t.clientY, sens: null };
+}, { passive: true });
+
+zoneMois.addEventListener("touchmove", (e) => {
+  if (!glisse) return;
+  const t = e.touches[0];
+  const dx = t.clientX - glisse.x;
+  const dy = t.clientY - glisse.y;
+  // On décide une fois pour toutes : geste horizontal (mois) ou vertical (défilement)
+  if (!glisse.sens && Math.hypot(dx, dy) > 10) {
+    glisse.sens = Math.abs(dx) > Math.abs(dy) ? "h" : "v";
+  }
+  if (glisse.sens !== "h" || mouvementReduit) return;
+  const largeur = zoneMois.clientWidth;
+  el.grille.style.transform = `translateX(${dx}px)`;
+  el.grille.style.opacity = String(1 - Math.min(Math.abs(dx) / largeur, 0.6));
+}, { passive: true });
+
+function finirGlisse(e) {
+  if (!glisse) return;
+  const t = e.changedTouches[0];
+  const dx = t.clientX - glisse.x;
+  const horizontal = glisse.sens === "h";
+  glisse = null;
+  el.grille.style.transform = "";
+  el.grille.style.opacity = "";
+  if (!horizontal) return;
+
+  if (Math.abs(dx) > 50) {
+    naviguerMois(dx < 0 ? 1 : -1, dx);
+  } else if (!mouvementReduit) {
+    // Pas assez loin : la grille revient en place
+    el.grille.animate(
+      [{ transform: `translateX(${dx}px)` }, { transform: "translateX(0)" }],
+      { duration: 200, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" }
+    );
+  }
+}
+zoneMois.addEventListener("touchend", finirGlisse);
+zoneMois.addEventListener("touchcancel", finirGlisse);
+
+// Au doigt : glisser un événement vers la gauche découvre le bouton de suppression
+let glisseEv = null; // { li, x, y, sens, base }
+
+function fermerEvenements(sauf) {
+  el.liste.querySelectorAll(".evenement.ouvert").forEach((li) => li !== sauf && li.classList.remove("ouvert"));
+}
+
+el.liste.addEventListener("touchstart", (e) => {
+  const li = e.target.closest(".evenement");
+  if (!li || e.target.closest(".supprimer")) return;
+  const t = e.touches[0];
+  const largeur = li.querySelector(".supprimer").offsetWidth;
+  glisseEv = { li, x: t.clientX, y: t.clientY, sens: null, base: li.classList.contains("ouvert") ? -largeur : 0, largeur };
+}, { passive: true });
+
+el.liste.addEventListener("touchmove", (e) => {
+  if (!glisseEv) return;
+  const t = e.touches[0];
+  const dx = t.clientX - glisseEv.x;
+  const dy = t.clientY - glisseEv.y;
+  if (!glisseEv.sens && Math.hypot(dx, dy) > 10) glisseEv.sens = Math.abs(dx) > Math.abs(dy) ? "h" : "v";
+  if (glisseEv.sens !== "h") return;
+  // Le bloc suit le doigt, sans dépasser un peu plus que la largeur du bouton
+  const decalage = Math.max(-glisseEv.largeur * 1.3, Math.min(0, glisseEv.base + dx));
+  const contenu = glisseEv.li.querySelector(".contenu");
+  contenu.style.transition = "none";
+  contenu.style.transform = `translateX(${decalage}px)`;
+  glisseEv.decalage = decalage;
+}, { passive: true });
+
+function finirGlisseEv() {
+  if (!glisseEv) return;
+  const { li, sens, decalage, largeur } = glisseEv;
+  glisseEv = null;
+  const contenu = li.querySelector(".contenu");
+  contenu.style.transition = "";
+  contenu.style.transform = "";
+  if (sens === "h") {
+    const ouvrir = decalage < -largeur / 2;
+    li.classList.toggle("ouvert", ouvrir);
+    if (ouvrir) fermerEvenements(li);
+  } else if (!sens) {
+    // Simple toucher sur un événement ouvert : il se referme
+    li.classList.remove("ouvert");
+  }
+}
+el.liste.addEventListener("touchend", finirGlisseEv);
+el.liste.addEventListener("touchcancel", finirGlisseEv);
+
+// Toucher ailleurs dans l'app referme l'événement ouvert
+document.addEventListener("touchstart", (e) => {
+  if (!e.target.closest(".evenement")) fermerEvenements();
+}, { passive: true });
+
+// Pas de menu contextuel du navigateur sur un appui long
+el.grille.addEventListener("contextmenu", (e) => e.preventDefault());
+
 el.ouvrirAjout.addEventListener("click", ouvrirFormulaire);
+// Quand le clavier s'ouvre ou se ferme, Android redimensionne l'écran d'un coup
+// et le panneau saute. On le replace là où il était, puis on le fait glisser
+// jusqu'à sa nouvelle position.
+let hauteurEcran = window.innerHeight;
+
+// Hauteur de la page, figée clavier fermé : le clavier ne la fait plus rétrécir
+const champSaisie = () => document.activeElement?.matches?.('input:not([readonly]), textarea');
+function figerHauteurPage() {
+  document.documentElement.style.setProperty("--hauteur-ecran", `${window.innerHeight}px`);
+}
+if (estMobile) figerHauteurPage();
+
+window.addEventListener("resize", () => {
+  const ecart = window.innerHeight - hauteurEcran;
+  hauteurEcran = window.innerHeight;
+  // L'écran grandit (clavier rangé) ou change sans clavier (rotation) : on suit.
+  // Il rétrécit pendant une saisie : c'est le clavier, la page garde sa hauteur.
+  if (estMobile && (ecart > 0 || !champSaisie())) figerHauteurPage();
+  if (!estMobile || mouvementReduit || el.formulaire.hidden || !ecart) return;
+  el.formulaire.animate(
+    [{ transform: `translateY(${-ecart}px)` }, { transform: "translateY(0)" }],
+    { duration: 260, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)", composite: "add" }
+  );
+});
+
+// Toucher le voile ferme le formulaire (sauf juste après l'ouverture :
+// le doigt de l'appui long est peut-être encore en train de se relever)
+el.voile.addEventListener("click", () => {
+  if (Date.now() - ouvertureFormulaire > 500) fermerFormulaire();
+});
 $("annuler").addEventListener("click", fermerFormulaire);
 
 el.champDebut.addEventListener("input", verifierHoraires);
@@ -476,8 +964,12 @@ el.formulaire.addEventListener("submit", async (e) => {
   if (!ok) return; // le formulaire reste ouvert pour réessayer
 
   fermerFormulaire();
+  const avant = new Set([...el.liste.children].map((li) => li.dataset.id));
   afficherGrille();
   afficherPanneau();
+  if (!mouvementReduit) {
+    [...el.liste.children].filter((li) => !avant.has(li.dataset.id)).forEach(deplier);
+  }
 });
 
 document.addEventListener("keydown", (e) => {
@@ -492,7 +984,16 @@ document.addEventListener("keydown", (e) => {
 });
 
 document.querySelectorAll("[data-theme-choix]").forEach((bouton) => {
-  bouton.addEventListener("click", () => appliquerTheme(bouton.dataset.themeChoix));
+  bouton.addEventListener("click", () => {
+    const theme = bouton.dataset.themeChoix;
+    if (theme === document.documentElement.dataset.theme) return;
+    // Passage clair / sombre en fondu au lieu d'un basculement sec
+    if (document.startViewTransition && !mouvementReduit) {
+      document.startViewTransition(() => appliquerTheme(theme));
+    } else {
+      appliquerTheme(theme);
+    }
+  });
 });
 
 // ---------- Connexion ----------
@@ -536,6 +1037,10 @@ $("deconnexion").addEventListener("click", () => client?.auth.signOut());
 // ---------- Synchronisation ----------
 // On relit la base quand on revient sur la fenêtre, et toutes les minutes
 window.addEventListener("focus", chargerDepuisServeur);
+// Sur téléphone, on revient dans l'app sans « focus » de fenêtre
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") chargerDepuisServeur();
+});
 setInterval(chargerDepuisServeur, 60 * 1000);
 
 // ---------- Passage à minuit ----------
