@@ -4,6 +4,7 @@
   --encre: #fff;
   --discret: rgba(255, 255, 255, 0.4);
   --trait: 4px;
+  --marge-cote: 60px; /* bande noire à gauche et à droite du cadre */
   color-scheme: dark;
   font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
 }
@@ -61,7 +62,8 @@ button {
 /* ---------- Cadre principal ---------- */
 .cadre {
   position: fixed;
-  inset: 40px 88px; /* même marge à gauche et à droite */
+  /* 40px en haut et en bas ; sur les côtés, juste la place des sélecteurs */
+  inset: 40px var(--marge-cote);
   border: var(--trait) solid var(--encre);
   padding: 44px 32px 32px;
   /* À droite, la marge grandit avec la fenêtre : 32px en petit, ~100px en grand */
@@ -425,9 +427,9 @@ button {
 /* ---------- Sélecteur DARK / LIGHT vertical ---------- */
 .theme {
   position: fixed;
-  left: 40px;
+  left: 0;
   bottom: 50px; /* bas du cadre (40px + 4px de trait) + 6px d'espace */
-  width: 48px;
+  width: var(--marge-cote); /* centré dans la bande de gauche */
   display: flex;
   flex-direction: column-reverse;
   align-items: center;
@@ -468,9 +470,9 @@ button {
    lu de haut en bas (le sélecteur se lit de bas en haut) */
 .controles {
   position: fixed;
-  right: 40px;
+  right: 0;
   top: 50px; /* haut du cadre (40px) + 4px de trait + 6px d'espace */
-  width: 48px;
+  width: var(--marge-cote); /* centré dans la bande de droite */
   display: flex;
   flex-direction: column;
   align-items: center;
