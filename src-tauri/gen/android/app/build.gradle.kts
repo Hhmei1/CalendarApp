@@ -1,4 +1,3 @@
-import java.io.FileInputStream
 import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
@@ -20,7 +19,8 @@ val tauriProperties = Properties().apply {
 val keystorePropertiesFile = rootProject.file("keystore.properties")
 val keystoreProperties = Properties().apply {
     if (keystorePropertiesFile.exists()) {
-        load(FileInputStream(keystorePropertiesFile))
+        // Lu en UTF-8 : sinon les caractères non latins du chemin sont abîmés
+        keystorePropertiesFile.reader(Charsets.UTF_8).use { load(it) }
     }
 }
 
